@@ -26,13 +26,14 @@ CLASS zcl_abapdi_container DEFINITION
         is_spec     TYPE REF TO lts_cont
         i_classname TYPE lts_cont-src
       EXPORTING
-        e_result    TYPE REF TO object.
+        e_result    TYPE REF TO object
+      RAISING
+        cx_abap_invalid_value.
     METHODS create_object
       IMPORTING
-        i_zif_gol_world TYPE string
-        i_ifname        TYPE string
+        i_ifname TYPE string
       EXPORTING
-        e_result        TYPE REF TO object
+        e_result TYPE REF TO object
       RAISING
         cx_abap_invalid_value.
     METHODS get_constructor_parmbind
@@ -57,7 +58,9 @@ CLASS zcl_abapdi_container IMPLEMENTATION.
 
   METHOD create_object.
 
-    DATA:params TYPE REF TO abap_parmbind_tab .
+    DATA:
+         params TYPE REF TO abap_parmbind_tab .
+
     DATA(lr_type) = describe_type( i_ifname ).
     TRY.
         DATA(lr_intf) = CAST cl_abap_intfdescr( lr_type ).
@@ -90,6 +93,23 @@ CLASS zcl_abapdi_container IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD describe_type.
+
+    CALL METHOD cl_abap_typedescr=>describe_by_name
+      EXPORTING
+        p_name         = i_name
+      RECEIVING
+        p_descr_ref    = rr_type
+      EXCEPTIONS
+        type_not_found = 1
+        OTHERS         = 2.
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE cx_abap_invalid_value.
+    ENDIF.
+
+  ENDMETHOD.
+
+
   METHOD get_constructor_parmbind.
     DATA:
       constructor TYPE REF TO abap_methdescr,
@@ -113,7 +133,7 @@ CLASS zcl_abapdi_container IMPLEMENTATION.
         ASSIGN parmbind-value->* TO <fs>.
         dependency ?= refdescr->get_referenced_type( ).
         TRY.
-            <fs> ?= get_instance(  |{ dependency->absolute_name }| ).
+            <fs> ?= get_instance(  |{ dependency->get_relative_name( ) }| ).
           CATCH cx_abap_invalid_value.
             "handle exception
         ENDTRY.
@@ -132,16 +152,24 @@ CLASS zcl_abapdi_container IMPLEMENTATION.
         DATA(ls_spec) = REF #( mt_cont[ dst = ifname ] ).
         DATA(classname) = ls_spec->src.
         IF ls_spec->single = abap_true.
-          get_singleton(
-                EXPORTING
-                  is_spec     = ls_spec
-                  i_classname = classname
-                IMPORTING
-                  e_result = r_result ).
+          IF classname IS INITIAL.
+            get_singleton(
+                  EXPORTING
+                    is_spec     = ls_spec
+                    i_classname = ifname
+                  IMPORTING
+                    e_result = r_result ).
+          ELSE.
+            get_singleton(
+                  EXPORTING
+                    is_spec     = ls_spec
+                    i_classname = classname
+                  IMPORTING
+                    e_result = r_result ).
+          ENDIF.
         ELSE.
           create_object(
                 EXPORTING
-                  i_zif_gol_world = i_classname
                   i_ifname        = classname
                 IMPORTING
                   e_result = r_result ).
@@ -149,7 +177,6 @@ CLASS zcl_abapdi_container IMPLEMENTATION.
       CATCH cx_sy_itab_line_not_found.
         create_object(
               EXPORTING
-                i_zif_gol_world = i_classname
                 i_ifname        = ifname
               IMPORTING
                 e_result = r_result ).
@@ -158,10 +185,15 @@ CLASS zcl_abapdi_container IMPLEMENTATION.
 
 
   METHOD get_singleton.
+
     IF is_spec->obj IS BOUND.
       e_result = is_spec->obj.
     ELSE.
-      CREATE OBJECT e_result TYPE (i_classname). " upper case is necessary
+      create_object(
+            EXPORTING
+              i_ifname        = i_classname
+            IMPORTING
+              e_result = e_result ).
       is_spec->obj = e_result.
     ENDIF.
 
@@ -175,22 +207,6 @@ CLASS zcl_abapdi_container IMPLEMENTATION.
                         obj    = i_ob
                         single = COND #( WHEN i_ob IS BOUND THEN abap_true ELSE i_single )
                         ) TO mt_cont.
-  ENDMETHOD.
-
-  METHOD describe_type.
-
-    CALL METHOD cl_abap_typedescr=>describe_by_name
-      EXPORTING
-        p_name         = i_name
-      RECEIVING
-        p_descr_ref    = rr_type
-      EXCEPTIONS
-        type_not_found = 1
-        OTHERS         = 2.
-    IF sy-subrc <> 0.
-      RAISE EXCEPTION TYPE cx_abap_invalid_value.
-    ENDIF.
 
   ENDMETHOD.
-
 ENDCLASS.
