@@ -41,7 +41,9 @@ CLASS zcl_abapdi_container DEFINITION
         target_descr TYPE REF TO cl_abap_classdescr
         constructor  TYPE REF TO abap_methdescr
       EXPORTING
-        result       TYPE REF TO abap_parmbind_tab.
+        result       TYPE REF TO abap_parmbind_tab
+      RAISING
+        cx_abap_invalid_value.
     METHODS describe_type
       IMPORTING
         i_name         TYPE string
@@ -66,7 +68,7 @@ CLASS zcl_abapdi_container IMPLEMENTATION.
         lr_type = describe_type( ls_def-src ).
       CATCH cx_sy_move_cast_error.
       CATCH cx_sy_itab_line_not_found.
-        RAISE EXCEPTION TYPE cx_abap_invalid_param_value.
+        RAISE EXCEPTION TYPE cx_abap_invalid_value.
     ENDTRY.
 
     DATA(lr_class) = CAST cl_abap_classdescr( lr_type ). " at this stage it has to be class descriptor.
@@ -130,6 +132,8 @@ CLASS zcl_abapdi_container IMPLEMENTATION.
             <fs> ?= get_instance(  |{ dependency->get_relative_name( ) }| ).
           CATCH cx_abap_invalid_value.
             "handle exception
+          CATCH cx_sy_move_cast_error.
+            RAISE EXCEPTION TYPE cx_abap_invalid_value.
         ENDTRY.
         parmbind-name = parmdescr->name.
         parmbind-kind = cl_abap_objectdescr=>exporting.
