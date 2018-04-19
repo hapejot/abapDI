@@ -39,6 +39,7 @@ CLASS zcl_abapdi_container DEFINITION
     METHODS get_constructor_parmbind
       IMPORTING
         target_descr TYPE REF TO cl_abap_classdescr
+        constructor  TYPE REF TO abap_methdescr
       EXPORTING
         result       TYPE REF TO abap_parmbind_tab.
     METHODS describe_type
@@ -58,11 +59,8 @@ CLASS zcl_abapdi_container IMPLEMENTATION.
 
   METHOD create_object.
 
-    DATA:
-         params TYPE REF TO abap_parmbind_tab .
-
     DATA(lr_type) = describe_type( i_ifname ).
-    TRY.
+    TRY. " try resolving interface if it is one, if not just continue.
         DATA(lr_intf) = CAST cl_abap_intfdescr( lr_type ).
         DATA(ls_def) = mt_cont[ dst = lr_intf->get_relative_name( ) ].
         lr_type = describe_type( ls_def-src ).
@@ -71,15 +69,15 @@ CLASS zcl_abapdi_container IMPLEMENTATION.
         RAISE EXCEPTION TYPE cx_abap_invalid_param_value.
     ENDTRY.
 
-    DATA(lr_class) = CAST cl_abap_classdescr( lr_type ).
+    DATA(lr_class) = CAST cl_abap_classdescr( lr_type ). " at this stage it has to be class descriptor.
     DATA(cons) = REF #( lr_class->methods[ name = 'CONSTRUCTOR' ] OPTIONAL ).
     IF cons IS BOUND.
-      get_constructor_parmbind(
+      CALL METHOD get_constructor_parmbind
         EXPORTING
           target_descr = lr_class
+          constructor  = cons
         IMPORTING
-          result       = params
-      ).
+          result       = DATA(params).
     ENDIF.
     TRY.
         IF params IS INITIAL.
@@ -112,16 +110,12 @@ CLASS zcl_abapdi_container IMPLEMENTATION.
 
   METHOD get_constructor_parmbind.
     DATA:
-      constructor TYPE REF TO abap_methdescr,
-      parmdescr   TYPE REF TO abap_parmdescr,
-      refdescr    TYPE REF TO cl_abap_refdescr,
-      dependency  TYPE REF TO cl_abap_objectdescr,
-      parmbind    TYPE abap_parmbind.
+      parmdescr  TYPE REF TO abap_parmdescr,
+      refdescr   TYPE REF TO cl_abap_refdescr,
+      dependency TYPE REF TO cl_abap_objectdescr,
+      parmbind   TYPE abap_parmbind.
     FIELD-SYMBOLS <fs> TYPE any.
     CREATE DATA result.
-    READ TABLE target_descr->methods
-        REFERENCE INTO constructor
-        WITH KEY name = 'CONSTRUCTOR'.
     IF sy-subrc EQ 0.
       LOOP AT constructor->parameters REFERENCE INTO parmdescr.
         CHECK parmdescr->type_kind EQ cl_abap_objectdescr=>typekind_oref.
