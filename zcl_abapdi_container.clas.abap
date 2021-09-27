@@ -19,6 +19,7 @@ CLASS zcl_abapdi_container DEFINITION
         cx_abap_invalid_value.
   PROTECTED SECTION.
   PRIVATE SECTION.
+    CONSTANTS mc_constructor TYPE string VALUE 'CONSTRUCTOR' ##NO_TEXT.
     DATA:
             mt_cont TYPE ltt_cont.
     METHODS get_singleton
@@ -72,7 +73,7 @@ CLASS zcl_abapdi_container IMPLEMENTATION.
     ENDTRY.
 
     DATA(lr_class) = CAST cl_abap_classdescr( lr_type ). " at this stage it has to be class descriptor.
-    DATA(cons) = REF #( lr_class->methods[ name = 'CONSTRUCTOR' ] OPTIONAL ).
+    DATA(cons) = REF #( lr_class->methods[ name = mc_constructor ] OPTIONAL ).
     IF cons IS BOUND.
       CALL METHOD get_constructor_parmbind
         EXPORTING
